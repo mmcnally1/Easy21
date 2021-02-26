@@ -1,64 +1,37 @@
 import random
 import numpy as np
-
-'''
-- infinite deck of cards (sampled w/ replacement)
-- each draw uniformly dist. b/w 1-10 (2/3 black, 1/3 red)
-- start: player, dealer draw one black card (observed)
-- each turn: may stick or hit
-- black cards added, red cards subtracted
-- > 21, < 1 = bust (reward -1)
-- once player sticks, dealer's turn
-- dealer sticks if sum >= 17, else hits
-- rewards: win = +1, draw = 0, lose = -1
-'''
+from copy import deepcopy
 
 class Agent:
-    def __init__self():
-        self.alpha = 0
-        self.epsilon = 0
-        self.last_state = None
-        self.last_action = None
+    def __init__(self):
+        self.stick = False
+        self.alpha = .5
+        self.epsilon = .05
         self.values = np.zeros((21, 10, 2))
 
-    def arg_max(self, state):
-        if self.values[state[0]][state[1]][0] > self.values[state[0]][state[1]][1]:
-            return 0
-        elif self.values[state[0]][state[1]][0] < self.values[state[0]][state[1]][1]:
-            return 1
-        else:
-            return random.choice([0,1])
-
-    def policy(self, state):
-        greedy = random.random()
-        if greedy > epsilon:
-            return self.argmax(state)
-        else:
-            return random.choice([0,1])
-
-    def step(self, state):
-        action = self.policy(state)
+    def step(self, state, action):
         if action == 0:
             state[0] += deal_card(False)
         else:
-            while state[1] < 17 and state[1] > 1:
+            self.stick = True
+            while state[1] < 17 and state[1] >= 1:
                 state[1] += deal_card(False)
 
-        reward = give_reward(state)
-        '''
-        Update?
-        '''
+        return give_reward(state, self)
 
-    def run_episode(self):
-        '''
-        generate start state
-        step until terminal
-        update?
-        run_episode for i in range(num_episodes)
-        '''
-
+    def choose_action(self, state, policy):
+        greedy = random.random()
+        if greedy > self.epsilon:
+            action = policy[state[0] - 1][state[1] - 1]
+        else:
+            action = random.randint(0,1)
+        return action
 
 def deal_card(is_first):
+    '''
+    First card for dealer and agent is black (positive value),
+    for subsequent cards prob(black) = 2/3, prob(red) = 1/3
+    '''
     value = random.randint(1,10)
     if is_first:
         return value
@@ -68,16 +41,17 @@ def deal_card(is_first):
             value = 0 - value
         return value
 
-def is_terminal(state):
+def is_terminal(state, agent):
     if state[0] > 21 or state[0]< 1:
         return True
+
     elif agent.stick and (state[1] >= 17 or state[1] < 1):
         return True
 
     return False
 
-def give_reward(state):
-    if is_terminal(state):
+def give_reward(state, agent):
+    if is_terminal(state, agent):
         if state[0] > 21 or state[0] < 1:
             return -1
         elif state[1] > 21 or state[1] < 1:
@@ -88,37 +62,67 @@ def give_reward(state):
             return -1
     return 0
 
-def monte_carlo():
-    '''
-    initialize value funct to 0
-    step_size = 1 / N(St,At)
-    epsilon = N_zero / (N_zero + N(St))
-        N_zero = 100 (can modify), N(s) = num times state s
-        has been visited, N(s,a) = num times action
-        a has been selected in state s
-    plot optimal value function V*(s) = max_a(Q*(s,a))
-    '''
-    pass
 
-def td_learning():
-    '''
-    implement sarsa(lambda) w/ same step size, epsilon as MC
-    run 1000 episodes w/ lambda = {0,.1,...1}
-    return mean squared error over all states, actions
-        plot against lambda
-    '''
-    pass
+def monte_carlo(agent, num_episodes):
+    policy = [[0 for i in range(10)] for i in range(21)]
+    returns = [[[[],[]] for i in range(10)] for i in range(21)]
 
-def linear_funct_approx():
-    '''
-    use binary feature vector phi(s,a) w/ 3*6*2 = 36 features
-        feature has val 1 iff (s,a) ies w/in state space and action
-        intevals: dealer = {[1,4],[4,7],[7,10]}
-                  player = {[1,6],[4,9],[7,12],[10,15],[13,18],[16,21]}
-                  a = {hit, stick}
-    repeat sarsa exp. but w/ LFA -> Q(s,a) = phi.T * theta
-    epsilon = .05
-    alpha = .01
-    plot curve for MSE vs. lambda
-    '''
-    pass
+    for i in range(num_episodes):
+        agent.stick = False
+        G = 0
+        state = [deal_card(True), deal_card(True)]
+        while not is_terminal(state, agent):
+            last_state = deepcopy(state)
+            action = agent.choose_action(state, policy)
+            reward = agent.step(state, action)
+            G += reward
+            returns[last_state[0] - 1][last_state[1] - 1][action].append(G)
+            agent.values[last_state[0] - 1][last_state[1] - 1][action] = np.average(returns[last_state[0] - 1][last_state[1] - 1][action])
+            policy[last_state[0] - 1][last_state[1] - 1] = np.argmax(agent.values[last_state[0] - 1][last_state[1] - 1])
+    return policy
+
+def sarsa(agent, num_episodes):
+    policy = [[0 for i in range(10)] for i in range(21)]
+    for i in range(num_episodes):
+        state = [deal_card(True), deal_card(True)]
+        action = agent.choose_action(state, policy)
+        while not is_terminal(state, agent):
+            last_state = deepcopy(state)
+            last_action = action
+            reward = agent.step(state, action)
+            if not is_terminal(state, agent):
+                action = agent.choose_action(state, policy)
+                agent.values[last_state[0] - 1][last_state[1] - 1][last_action] += agent.alpha * (reward + agent.values[state[0] - 1][state[1] - 1][action] -
+                                                                                                    agent.values[last_state[0] - 1][last_state[1] - 1][last_action])
+            else:
+                agent.values[last_state[0] - 1][last_state[1] - 1][last_action] += agent.alpha * (reward - agent.values[last_state[0] - 1][last_state[1] - 1][last_action])
+
+            policy[last_state[0] - 1][last_state[1] - 1] = np.argmax(agent.values[last_state[0] - 1][last_state[1] - 1])
+
+
+def linear_funct_approx(agent, num_episodes):
+    policy = [[0 for i in range(10)] for i in range(21)]
+    for i in range(num_episodes):
+        state = [deal_card(True), deal_card(True)]
+        action = agent.choose_action(state, policy)
+        while not is_terminal(state, agent):
+            last_state = deepcopy(state)
+            last_action = action
+            reward = agent.step(state, action)
+            if not is_terminal(state, agent):
+                action = agent.choose_action(state, policy)
+                agent.values[last_state[0] - 1][last_state[1] - 1][last_action] += agent.alpha * (reward + agent.values[state[0] - 1][state[1] - 1][action] -
+                                                                                                    agent.values[last_state[0] - 1][last_state[1] - 1][last_action])
+            else:
+                agent.values[last_state[0] - 1][last_state[1] - 1][last_action] += agent.alpha * (reward - agent.values[last_state[0] - 1][last_state[1] - 1][last_action])
+
+            policy[last_state[0] - 1][last_state[1] - 1] = np.argmax(agent.values[last_state[0] - 1][last_state[1] - 1])
+
+
+if __name__ == "__main__":
+    #mc_agent = Agent()
+    #sarsa_agent = Agent()
+    lfa_agent = Agent()
+    #monte_carlo(mc_agent, 10000)
+    #sarsa(sarsa_agent, 10000)
+    linear_funct_approx(lfa_agent, 10000)
