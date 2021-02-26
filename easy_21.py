@@ -1,3 +1,6 @@
+import random
+import numpy as np
+
 '''
 - infinite deck of cards (sampled w/ replacement)
 - each draw uniformly dist. b/w 1-10 (2/3 black, 1/3 red)
@@ -10,67 +13,80 @@
 - rewards: win = +1, draw = 0, lose = -1
 '''
 
-class Card:
-    '''
-    value - int (1-10)
-    color - (red/black)
-    '''
-    def __init__(self, value, color):
-        self.value = value
-        self.color = color
+class Agent:
+    def __init__self():
+        self.alpha = 0
+        self.epsilon = 0
+        self.last_state = None
+        self.last_action = None
+        self.values = np.zeros((21, 10, 2))
 
-class Player:
-    def __init__(self):
-        self.cards = []
-        self.stick = False
+    def arg_max(self, state):
+        if self.values[state[0]][state[1]][0] > self.values[state[0]][state[1]][1]:
+            return 0
+        elif self.values[state[0]][state[1]][0] < self.values[state[0]][state[1]][1]:
+            return 1
+        else:
+            return random.choice([0,1])
 
-class Dealer:
-    def __init__(self):
-        self.cards = []
-        self.stick = False
+    def policy(self, state):
+        greedy = random.random()
+        if greedy > epsilon:
+            return self.argmax(state)
+        else:
+            return random.choice([0,1])
 
-    def hit_or_stick(self):
-        if score(self.cards) >= 17:
-            self.stick = True
-        return self.stick
+    def step(self, state):
+        action = self.policy(state)
+        if action == 0:
+            state[0] += deal_card(False)
+        else:
+            while state[1] < 17 and state[1] > 1:
+                state[1] += deal_card(False)
 
-class State:
-    def __init__(self):
-        self.dealer_card = None
-        self.player_sum = None
-        self.action = None
-        self.terminal = False
+        reward = give_reward(state)
+        '''
+        Update?
+        '''
 
-def step(state, action):
-    '''
-    input: state - dealer's first card, player's sum
-           action - hit/stick
-    returns: next_state, reward
-    '''
-    pass
+    def run_episode(self):
+        '''
+        generate start state
+        step until terminal
+        update?
+        run_episode for i in range(num_episodes)
+        '''
 
-def deal_next_card():
-    '''
-    deal random card from 1-10 (1/3 prob red, 2/3 prob black)
-    '''
-    pass
 
-def score(cards):
-    '''
-    input: list of cards
-    return: score (sum of black cards minus sum of red cards)
-    '''
-    pass
+def deal_card(is_first):
+    value = random.randint(1,10)
+    if is_first:
+        return value
+    else:
+        color = random.random()
+        if color < .33:
+            value = 0 - value
+        return value
 
-def is_terminal(state, dealer):
-    if state.player_sum > 21 or state.player_sum < 1:
+def is_terminal(state):
+    if state[0] > 21 or state[0]< 1:
         return True
-
-    if score(dealer.cards) > 21 or score(dealer.cards) < 1:
+    elif agent.stick and (state[1] >= 17 or state[1] < 1):
         return True
 
     return False
 
+def give_reward(state):
+    if is_terminal(state):
+        if state[0] > 21 or state[0] < 1:
+            return -1
+        elif state[1] > 21 or state[1] < 1:
+            return 1
+        elif state[0] > state[1]:
+            return 1
+        elif state[0] < state[1]:
+            return -1
+    return 0
 
 def monte_carlo():
     '''
